@@ -14,7 +14,7 @@ export async function getPayments(): Promise<PaymentRecord[]> {
   const { data, error } = await supabase.from("payments").select("*").order("created_at", { ascending: false })
 
   if (error) {
-    console.error("[v0] Error fetching payments:", error)
+    console.error("Error fetching payments:", error)
     return []
   }
 
@@ -31,9 +31,6 @@ export async function getPayments(): Promise<PaymentRecord[]> {
 export async function addPayment(payment: Omit<PaymentRecord, "id" | "timestamp">): Promise<PaymentRecord | null> {
   const supabase = getSupabaseClient()
 
-  console.log("[v0] Adding payment to Supabase...")
-  console.log("[v0] Screenshot size:", Math.round((payment.screenshot?.length || 0) / 1024), "KB")
-
   const { data, error } = await supabase
     .from("payments")
     .insert({
@@ -46,11 +43,9 @@ export async function addPayment(payment: Omit<PaymentRecord, "id" | "timestamp"
     .single()
 
   if (error) {
-    console.error("[v0] Supabase insert error:", error.message, error.details, error.hint)
+    console.error("Supabase insert error:", error.message, error.details, error.hint)
     throw new Error(error.message || "Database error")
   }
-
-  console.log("[v0] Payment added successfully:", data.id)
 
   return {
     id: data.id,
@@ -60,4 +55,39 @@ export async function addPayment(payment: Omit<PaymentRecord, "id" | "timestamp"
     screenshot: data.screenshot_url,
     timestamp: data.created_at,
   }
+}
+
+export async function updatePayment(
+  id: string,
+  updates: Partial<Omit<PaymentRecord, "id" | "timestamp">>,
+): Promise<boolean> {
+  const supabase = getSupabaseClient()
+
+  const updateData: any = {}
+  if (updates.name !== undefined) updateData.name = updates.name
+  if (updates.amount !== undefined) updateData.amount = updates.amount
+  if (updates.branch !== undefined) updateData.branch = updates.branch
+  if (updates.screenshot !== undefined) updateData.screenshot_url = updates.screenshot
+
+  const { error } = await supabase.from("payments").update(updateData).eq("id", id)
+
+  if (error) {
+    console.error("Supabase update error:", error.message)
+    throw new Error(error.message || "Update failed")
+  }
+
+  return true
+}
+
+export async function deletePayment(id: string): Promise<boolean> {
+  const supabase = getSupabaseClient()
+
+  const { error } = await supabase.from("payments").delete().eq("id", id)
+
+  if (error) {
+    console.error("Supabase delete error:", error.message)
+    throw new Error(error.message || "Delete failed")
+  }
+
+  return true
 }
