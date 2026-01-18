@@ -285,7 +285,7 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Event Date</p>
-                  <p className="text-xl font-bold text-blue-600">2 Feb 2026</p>
+                  <p className="text-xl font-bold text-blue-600">26 jan 2026</p>
                 </div>
               </div>
             </CardContent>
