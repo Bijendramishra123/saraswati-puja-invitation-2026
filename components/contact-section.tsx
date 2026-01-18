@@ -17,7 +17,7 @@ interface ContactSectionProps {
 }
 
 const phoneNumbers = ["8864074466", "7488242712"]
-const UPI_ID = "9325784771@ibl"
+const UPI_ID = "8864074466@ybl"
 
 function compressImage(file: File, maxWidth = 800, quality = 0.7): Promise<string> {
   return new Promise((resolve, reject) => {
