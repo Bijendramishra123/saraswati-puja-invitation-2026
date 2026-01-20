@@ -1,3 +1,4 @@
+// app/layout.tsx (fixed version)
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Noto_Sans, Noto_Serif_Devanagari } from "next/font/google"
@@ -36,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="hi" className="scroll-smooth">
+    <html lang="hi" data-scroll-behavior="smooth">
       <body className={`${notoSans.variable} ${notoSerifDevanagari.variable} font-sans antialiased`}>
         {children}
         <Analytics />

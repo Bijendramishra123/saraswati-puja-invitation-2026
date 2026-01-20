@@ -29,6 +29,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog"
 import {
   FiLock,
@@ -96,7 +97,6 @@ export default function AdminPage() {
     todayContributions: 0,
     averageAmount: 0,
   })
-  const [screenshotView, setScreenshotView] = useState<PaymentRecord | null>(null)
 
   const fetchPayments = async () => {
     setLoading(true)
@@ -576,29 +576,41 @@ export default function AdminPage() {
                                 variant="outline"
                                 size="sm"
                                 className="gap-2 bg-transparent hover:bg-primary/10 w-full"
-                                onClick={() => setScreenshotView(payment)}
                               >
                                 <FiEye className="w-4 h-4" />
                                 View
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-3xl">
-                              <DialogHeader>
-                                <DialogTitle className="flex items-center gap-2">
-                                  <FiImage className="w-5 h-5 text-primary" />
-                                  Payment Screenshot - {payment.name}
-                                </DialogTitle>
+                            <DialogContent className="max-w-3xl h-[90vh] sm:h-auto">
+                              <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b">
+                                <div className="flex items-center justify-between">
+                                  <DialogTitle className="flex items-center gap-2 text-lg">
+                                    <FiImage className="w-5 h-5 text-primary" />
+                                    Payment Screenshot
+                                  </DialogTitle>
+                                  <DialogClose asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      aria-label="Close"
+                                    >
+                                      <FiX className="h-4 w-4" />
+                                    </Button>
+                                  </DialogClose>
+                                </div>
                                 <DialogDescription>
-                                  Contribution Amount: ₹{Number(payment.amount).toLocaleString("hi-IN")}
+                                  {payment.name} • ₹{Number(payment.amount).toLocaleString("hi-IN")} • {payment.branch}
                                 </DialogDescription>
                               </DialogHeader>
-                              <div className="space-y-4">
+
+                              <div className="overflow-y-auto flex-1 py-4 space-y-4">
                                 {payment.screenshot ? (
                                   <div className="bg-muted/20 rounded-lg p-2">
                                     <img
                                       src={payment.screenshot}
                                       alt={`Payment screenshot from ${payment.name}`}
-                                      className="w-full h-auto rounded-lg max-h-[500px] object-contain"
+                                      className="w-full h-auto rounded-lg max-h-[50vh] object-contain"
                                       onError={(e) => {
                                         const target = e.target as HTMLImageElement
                                         target.src = "/placeholder.svg"
@@ -608,11 +620,14 @@ export default function AdminPage() {
                                 ) : (
                                   <div className="text-center py-12 text-muted-foreground">
                                     <FiImage className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                                    <p>No screenshot available</p>
+                                    <p className="text-lg">No screenshot available</p>
+                                    <p className="text-sm mt-1">कोई स्क्रीनशॉट उपलब्ध नहीं है</p>
                                   </div>
                                 )}
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div className="bg-muted/30 p-4 rounded-lg space-y-2">
+                                    <h3 className="font-semibold text-sm mb-2">Contributor Details</h3>
                                     <div className="flex justify-between">
                                       <span className="text-muted-foreground">Name:</span>
                                       <span className="font-medium">{payment.name}</span>
@@ -629,29 +644,47 @@ export default function AdminPage() {
                                     </div>
                                   </div>
                                   <div className="bg-muted/30 p-4 rounded-lg space-y-2">
+                                    <h3 className="font-semibold text-sm mb-2">Transaction Details</h3>
                                     <div className="flex justify-between">
                                       <span className="text-muted-foreground">Date:</span>
                                       <span className="font-medium">{formatDate(payment.timestamp)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span className="text-muted-foreground">Record ID:</span>
-                                      <span className="font-mono text-sm truncate max-w-[150px]">
-                                        {payment.id}
+                                      <span className="font-mono text-sm truncate">
+                                        {payment.id.substring(0, 8)}...
                                       </span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span className="text-muted-foreground">Screenshot:</span>
                                       <span className="text-sm">
-                                        {payment.screenshot ? "Available" : "Not Available"}
+                                        {payment.screenshot ? (
+                                          <span className="text-green-600">Available</span>
+                                        ) : (
+                                          <span className="text-red-600">Not Available</span>
+                                        )}
                                       </span>
                                     </div>
                                   </div>
                                 </div>
                               </div>
-                              <DialogFooter>
-                                <Button variant="outline" onClick={() => setScreenshotView(null)}>
-                                  Close
-                                </Button>
+
+                              <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
+                                <div className="flex w-full gap-2">
+                                  <DialogClose asChild>
+                                    <Button variant="outline" className="flex-1">
+                                      Close
+                                    </Button>
+                                  </DialogClose>
+                                  <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => handleEditClick(payment)}
+                                  >
+                                    <FiEdit className="w-4 h-4 mr-2" />
+                                    Edit
+                                  </Button>
+                                </div>
                               </DialogFooter>
                             </DialogContent>
                           </Dialog>
@@ -665,7 +698,7 @@ export default function AdminPage() {
                               onClick={() => handleEditClick(payment)}
                             >
                               <FiEdit className="w-4 h-4" />
-                              Edit
+                              <span className="hidden sm:inline">Edit</span>
                             </Button>
                             <Button
                               variant="outline"
@@ -674,7 +707,7 @@ export default function AdminPage() {
                               onClick={() => openDeleteDialog(payment)}
                             >
                               <FiTrash2 className="w-4 h-4" />
-                              Delete
+                              <span className="hidden sm:inline">Delete</span>
                             </Button>
                           </div>
                         </TableCell>
@@ -692,10 +725,20 @@ export default function AdminPage() {
       <Dialog open={!!editingPayment} onOpenChange={(open) => !open && setEditingPayment(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FiEdit className="w-5 h-5 text-primary" />
-              Edit Record / रिकॉर्ड संपादित करें
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <FiEdit className="w-5 h-5 text-primary" />
+                Edit Record
+              </DialogTitle>
+              <DialogClose asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <FiX className="h-4 w-4" />
+                </Button>
+              </DialogClose>
+            </div>
+            <DialogDescription>
+              Update contributor's payment information
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -758,10 +801,17 @@ export default function AdminPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <FiTrash2 className="w-5 h-5" />
-              Delete Record / रिकॉर्ड डिलीट करें
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <FiTrash2 className="w-5 h-5" />
+                Delete Record
+              </DialogTitle>
+              <DialogClose asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <FiX className="h-4 w-4" />
+                </Button>
+              </DialogClose>
+            </div>
             <DialogDescription>
               Are you sure you want to delete this record? This action cannot be undone.
             </DialogDescription>
