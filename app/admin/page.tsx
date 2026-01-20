@@ -1,14 +1,35 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import Link from "next/link"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import {
   FiLock,
   FiLogOut,
@@ -23,9 +44,27 @@ import {
   FiTrash2,
   FiSave,
   FiX,
+  FiSearch,
+  FiEye,
+  FiTrendingUp,
+  FiFileText,
+  FiCheckCircle,
+  FiAlertCircle,
 } from "react-icons/fi"
-import { getPayments, updatePayment, deletePayment, type PaymentRecord } from "@/lib/payment-store"
-import Link from "next/link"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import {
+  getPayments,
+  updatePayment,
+  deletePayment,
+  type PaymentRecord,
+} from "@/lib/payment-store"
 
 const ADMIN_CREDENTIALS = {
   userId: "admin",
@@ -38,19 +77,37 @@ export default function AdminPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [payments, setPayments] = useState<PaymentRecord[]>([])
+  const [filteredPayments, setFilteredPayments] = useState<PaymentRecord[]>([])
   const [loading, setLoading] = useState(false)
 
   const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null)
-  const [editForm, setEditForm] = useState({ name: "", amount: "", branch: "" })
+  const [editForm, setEditForm] = useState({ name: "", amount: "", branch: "", screenshot: "" })
   const [deletePaymentRecord, setDeletePaymentRecord] = useState<PaymentRecord | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [actionMessage, setActionMessage] = useState("")
 
+  // New states
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterBranch, setFilterBranch] = useState("all")
+  const [stats, setStats] = useState({
+    totalAmount: 0,
+    totalContributors: 0,
+    todayContributions: 0,
+    averageAmount: 0,
+  })
+  const [screenshotView, setScreenshotView] = useState<PaymentRecord | null>(null)
+
   const fetchPayments = async () => {
     setLoading(true)
-    const data = await getPayments()
-    setPayments(data)
+    try {
+      const data = await getPayments()
+      setPayments(data)
+      setFilteredPayments(data)
+      calculateStats(data)
+    } catch (error) {
+      setActionMessage("Failed to load data")
+    }
     setLoading(false)
   }
 
@@ -61,6 +118,43 @@ export default function AdminPage() {
       fetchPayments()
     }
   }, [])
+
+  const calculateStats = (data: PaymentRecord[]) => {
+    const totalAmount = data.reduce((sum, p) => sum + Number(p.amount), 0)
+    const totalContributors = data.length
+    const today = new Date().toDateString()
+    const todayContributions = data.filter(
+      (p) => new Date(p.timestamp).toDateString() === today
+    ).length
+    const averageAmount = totalContributors > 0 ? totalAmount / totalContributors : 0
+
+    setStats({
+      totalAmount,
+      totalContributors,
+      todayContributions,
+      averageAmount: Math.round(averageAmount),
+    })
+  }
+
+  useEffect(() => {
+    if (!searchQuery.trim() && filterBranch === "all") {
+      setFilteredPayments(payments)
+    } else {
+      const q = searchQuery.toLowerCase()
+      setFilteredPayments(
+        payments.filter((p) => {
+          const matchesSearch =
+            p.name.toLowerCase().includes(q) ||
+            p.branch.toLowerCase().includes(q) ||
+            String(p.amount).includes(q)
+
+          const matchesBranch = filterBranch === "all" || p.branch === filterBranch
+
+          return matchesSearch && matchesBranch
+        })
+      )
+    }
+  }, [searchQuery, filterBranch, payments])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -87,6 +181,7 @@ export default function AdminPage() {
       name: payment.name,
       amount: payment.amount,
       branch: payment.branch,
+      screenshot: payment.screenshot || ""
     })
     setActionMessage("")
   }
@@ -96,7 +191,12 @@ export default function AdminPage() {
 
     setActionLoading(true)
     try {
-      await updatePayment(editingPayment.id, editForm)
+      await updatePayment(editingPayment.id, {
+        name: editForm.name,
+        amount: editForm.amount,
+        branch: editForm.branch,
+        screenshot: editForm.screenshot
+      })
       setActionMessage("Record updated successfully! / रिकॉर्ड अपडेट हो गया!")
       await fetchPayments()
       setTimeout(() => {
@@ -117,9 +217,7 @@ export default function AdminPage() {
     setActionMessage("")
 
     try {
-      console.log("[v0] Attempting to delete payment with id:", idToDelete)
       await deletePayment(idToDelete)
-      console.log("[v0] Delete successful")
       setActionMessage("Record deleted! / रिकॉर्ड डिलीट हो गया!")
       await fetchPayments()
       setTimeout(() => {
@@ -128,7 +226,6 @@ export default function AdminPage() {
         setActionMessage("")
       }, 1000)
     } catch (err: any) {
-      console.error("[v0] Delete error:", err)
       setActionMessage("Error: " + (err.message || "Delete failed"))
     }
     setActionLoading(false)
@@ -145,6 +242,11 @@ export default function AdminPage() {
       dateStyle: "medium",
       timeStyle: "short",
     })
+  }
+
+  const getBranches = () => {
+    const branches = new Set(payments.map((p) => p.branch))
+    return Array.from(branches)
   }
 
   if (!isLoggedIn) {
@@ -215,16 +317,14 @@ export default function AdminPage() {
     )
   }
 
-  const totalAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0)
-
   return (
     <main className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 p-4 sm:p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl font-bold text-primary">Admin Dashboard</h1>
-            <p className="text-muted-foreground mt-1">सरस्वती पूजा 2026 - भुगतान रिकॉर्ड</p>
+            <p className="text-muted-foreground mt-1">सरस्वती पूजा 2026 - भुगतान रिकॉर्ड प्रबंधन</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -249,8 +349,25 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Action Message */}
+        {actionMessage && (
+          <div
+            className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${actionMessage.includes("Error")
+                ? "bg-red-50 border border-red-200 text-red-800"
+                : "bg-green-50 border border-green-200 text-green-800"
+              }`}
+          >
+            {actionMessage.includes("Error") ? (
+              <FiAlertCircle className="w-5 h-5 text-red-600" />
+            ) : (
+              <FiCheckCircle className="w-5 h-5 text-green-600" />
+            )}
+            <span className="text-sm font-medium">{actionMessage}</span>
+          </div>
+        )}
+
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card className="bg-background/80 backdrop-blur border-primary/20">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -259,7 +376,10 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Contributors</p>
-                  <p className="text-3xl font-bold text-primary">{payments.length}</p>
+                  <p className="text-3xl font-bold text-primary">{stats.totalContributors}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats.todayContributions} today
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -272,7 +392,10 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Collection</p>
-                  <p className="text-3xl font-bold text-green-600">₹{totalAmount.toLocaleString("hi-IN")}</p>
+                  <p className="text-3xl font-bold text-green-600">₹{stats.totalAmount.toLocaleString("hi-IN")}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Avg: ₹{stats.averageAmount}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -281,25 +404,104 @@ export default function AdminPage() {
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-                  <FiCalendar className="w-6 h-6 text-blue-600" />
+                  <FiTrendingUp className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Event Date</p>
-                  <p className="text-xl font-bold text-blue-600">26 jan 2026</p>
+                  <p className="text-sm text-muted-foreground">Today's Contributions</p>
+                  <p className="text-3xl font-bold text-blue-600">{stats.todayContributions}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date().toLocaleDateString('en-IN', { weekday: 'long' })}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-background/80 backdrop-blur border-purple-500/20">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center">
+                  <FiFileText className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Records</p>
+                  <p className="text-3xl font-bold text-purple-600">{payments.length}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Showing {filteredPayments.length}
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Search and Filters */}
+        <Card className="mb-8 bg-background/80 backdrop-blur border-primary/20">
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, amount, or branch..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-12"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <Select value={filterBranch} onValueChange={setFilterBranch}>
+                <SelectTrigger className="w-full md:w-[180px] h-12">
+                  <SelectValue placeholder="Filter by branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {getBranches().map((branch) => (
+                    <SelectItem key={branch} value={branch}>
+                      {branch}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mt-4 text-sm text-muted-foreground flex items-center gap-2">
+              <FiFileText className="w-4 h-4" />
+              <span>
+                Database: {payments.length} records • Filtered: {filteredPayments.length} records
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Records Table */}
         <Card className="bg-background/80 backdrop-blur border-primary/20">
           <CardHeader className="border-b border-border/50">
-            <CardTitle className="text-xl flex items-center gap-2">
-              <FiImage className="w-5 h-5 text-primary" />
-              Payment Records / भुगतान रिकॉर्ड
-            </CardTitle>
-            <CardDescription>सभी योगदानकर्ताओं की सूची नीचे दी गई है</CardDescription>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <FiImage className="w-5 h-5 text-primary" />
+                  Payment Records / भुगतान रिकॉर्ड
+                </CardTitle>
+                <CardDescription>
+                  Showing {filteredPayments.length} of {payments.length} records
+                  {searchQuery && ` for "${searchQuery}"`}
+                  {filterBranch !== "all" && ` in ${filterBranch}`}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                  ₹{stats.totalAmount.toLocaleString()} Total
+                </Badge>
+                <Badge variant="outline" className="bg-green-50 text-green-700">
+                  {stats.totalContributors} Contributors
+                </Badge>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0 sm:p-6">
             {loading ? (
@@ -307,13 +509,26 @@ export default function AdminPage() {
                 <FiRefreshCw className="w-10 h-10 mx-auto mb-4 animate-spin" />
                 <p className="text-lg">Loading records...</p>
               </div>
-            ) : payments.length === 0 ? (
+            ) : filteredPayments.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-muted/50 flex items-center justify-center">
                   <FiUsers className="w-10 h-10" />
                 </div>
                 <p className="text-xl font-medium">No records found</p>
-                <p className="text-sm mt-1">कोई भुगतान रिकॉर्ड नहीं मिला</p>
+                <p className="text-sm mt-1">
+                  {searchQuery
+                    ? `No payments found for "${searchQuery}". Try a different search term.`
+                    : "कोई भुगतान रिकॉर्ड नहीं मिला"}
+                </p>
+                {searchQuery && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setSearchQuery("")}
+                    className="mt-4"
+                  >
+                    Clear Search
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -330,53 +545,114 @@ export default function AdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payments.map((payment, index) => (
+                    {filteredPayments.map((payment, index) => (
                       <TableRow key={payment.id} className="hover:bg-muted/20">
                         <TableCell className="font-bold text-primary">{index + 1}</TableCell>
                         <TableCell className="font-medium">{payment.name}</TableCell>
                         <TableCell>
-                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-500/10 text-green-600 font-semibold">
+                          <Badge className="bg-green-50 text-green-700 border-green-200 font-semibold">
                             ₹{Number(payment.amount).toLocaleString("hi-IN")}
-                          </span>
+                          </Badge>
                         </TableCell>
-                        <TableCell>{payment.branch}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{formatDate(payment.timestamp)}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                            {payment.branch}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col">
+                            <span className="text-foreground">
+                              {formatDate(payment.timestamp).split(",")[0]}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(payment.timestamp).split(",")[1]}
+                            </span>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Dialog>
                             <DialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="gap-2 bg-transparent hover:bg-primary/10">
-                                <FiImage className="w-4 h-4" />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-2 bg-transparent hover:bg-primary/10 w-full"
+                                onClick={() => setScreenshotView(payment)}
+                              >
+                                <FiEye className="w-4 h-4" />
                                 View
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-lg">
+                            <DialogContent className="max-w-3xl">
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                  <FiImage className="w-5 h-5 text-primary" />
+                                  Payment Screenshot - {payment.name}
+                                </DialogTitle>
+                                <DialogDescription>
+                                  Contribution Amount: ₹{Number(payment.amount).toLocaleString("hi-IN")}
+                                </DialogDescription>
+                              </DialogHeader>
                               <div className="space-y-4">
-                                <img
-                                  src={payment.screenshot || "/placeholder.svg"}
-                                  alt={`Payment screenshot from ${payment.name}`}
-                                  className="w-full rounded-lg border"
-                                />
-                                <div className="bg-muted/30 p-4 rounded-lg space-y-2">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Name:</span>
-                                    <span className="font-medium">{payment.name}</span>
+                                {payment.screenshot ? (
+                                  <div className="bg-muted/20 rounded-lg p-2">
+                                    <img
+                                      src={payment.screenshot}
+                                      alt={`Payment screenshot from ${payment.name}`}
+                                      className="w-full h-auto rounded-lg max-h-[500px] object-contain"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement
+                                        target.src = "/placeholder.svg"
+                                      }}
+                                    />
                                   </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Amount:</span>
-                                    <span className="font-semibold text-green-600">
-                                      ₹{Number(payment.amount).toLocaleString("hi-IN")}
-                                    </span>
+                                ) : (
+                                  <div className="text-center py-12 text-muted-foreground">
+                                    <FiImage className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                                    <p>No screenshot available</p>
                                   </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Branch:</span>
-                                    <span className="font-medium">{payment.branch}</span>
+                                )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="bg-muted/30 p-4 rounded-lg space-y-2">
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Name:</span>
+                                      <span className="font-medium">{payment.name}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Amount:</span>
+                                      <span className="font-semibold text-green-600">
+                                        ₹{Number(payment.amount).toLocaleString("hi-IN")}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Branch:</span>
+                                      <span className="font-medium">{payment.branch}</span>
+                                    </div>
                                   </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Date:</span>
-                                    <span className="font-medium">{formatDate(payment.timestamp)}</span>
+                                  <div className="bg-muted/30 p-4 rounded-lg space-y-2">
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Date:</span>
+                                      <span className="font-medium">{formatDate(payment.timestamp)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Record ID:</span>
+                                      <span className="font-mono text-sm truncate max-w-[150px]">
+                                        {payment.id}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Screenshot:</span>
+                                      <span className="text-sm">
+                                        {payment.screenshot ? "Available" : "Not Available"}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setScreenshotView(null)}>
+                                  Close
+                                </Button>
+                              </DialogFooter>
                             </DialogContent>
                           </Dialog>
                         </TableCell>
@@ -389,6 +665,7 @@ export default function AdminPage() {
                               onClick={() => handleEditClick(payment)}
                             >
                               <FiEdit className="w-4 h-4" />
+                              Edit
                             </Button>
                             <Button
                               variant="outline"
@@ -397,6 +674,7 @@ export default function AdminPage() {
                               onClick={() => openDeleteDialog(payment)}
                             >
                               <FiTrash2 className="w-4 h-4" />
+                              Delete
                             </Button>
                           </div>
                         </TableCell>
@@ -426,6 +704,7 @@ export default function AdminPage() {
                 id="edit-name"
                 value={editForm.name}
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="h-11"
               />
             </div>
             <div className="space-y-2">
@@ -435,6 +714,7 @@ export default function AdminPage() {
                 type="number"
                 value={editForm.amount}
                 onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                className="h-11"
               />
             </div>
             <div className="space-y-2">
@@ -443,15 +723,19 @@ export default function AdminPage() {
                 id="edit-branch"
                 value={editForm.branch}
                 onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })}
+                className="h-11"
               />
             </div>
-            {actionMessage && (
-              <div
-                className={`text-sm text-center p-3 rounded-lg ${actionMessage.includes("Error") ? "bg-red-500/10 text-red-600" : "bg-green-500/10 text-green-600"}`}
-              >
-                {actionMessage}
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-screenshot">Screenshot URL / स्क्रीनशॉट यूआरएल</Label>
+              <Input
+                id="edit-screenshot"
+                value={editForm.screenshot}
+                onChange={(e) => setEditForm({ ...editForm, screenshot: e.target.value })}
+                className="h-11"
+                placeholder="https://example.com/screenshot.jpg"
+              />
+            </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setEditingPayment(null)} disabled={actionLoading}>
@@ -470,6 +754,7 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -477,29 +762,28 @@ export default function AdminPage() {
               <FiTrash2 className="w-5 h-5" />
               Delete Record / रिकॉर्ड डिलीट करें
             </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this record? This action cannot be undone.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <p className="text-muted-foreground">
-              Are you sure you want to delete this record? This action cannot be undone.
-            </p>
-            <p className="text-muted-foreground mt-2">
-              क्या आप वाकई इस रिकॉर्ड को डिलीट करना चाहते हैं? यह क्रिया पूर्ववत नहीं की जा सकती।
-            </p>
             {deletePaymentRecord && (
-              <div className="mt-4 p-3 bg-muted/30 rounded-lg text-sm">
+              <div className="mt-4 p-3 bg-muted/30 rounded-lg text-sm space-y-2">
                 <p>
                   <strong>Name:</strong> {deletePaymentRecord.name}
                 </p>
                 <p>
-                  <strong>Amount:</strong> ₹{Number(deletePaymentRecord.amount).toLocaleString("hi-IN")}
+                  <strong>Amount:</strong>{" "}
+                  <span className="text-green-600 font-semibold">
+                    ₹{Number(deletePaymentRecord.amount).toLocaleString("hi-IN")}
+                  </span>
                 </p>
-              </div>
-            )}
-            {actionMessage && (
-              <div
-                className={`text-sm text-center p-3 rounded-lg mt-4 ${actionMessage.includes("Error") ? "bg-red-500/10 text-red-600" : "bg-green-500/10 text-green-600"}`}
-              >
-                {actionMessage}
+                <p>
+                  <strong>Branch:</strong> {deletePaymentRecord.branch}
+                </p>
+                <p>
+                  <strong>Date:</strong> {formatDate(deletePaymentRecord.timestamp)}
+                </p>
               </div>
             )}
           </div>
